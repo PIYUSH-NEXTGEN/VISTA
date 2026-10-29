@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* Reference design language:
+   warm light-gray workbench, thin 1px borders, single orange accent,
+   uppercase wide-tracked small labels, near-black active pill nav.
+   All colors as tokens so both themes stay consistent. */
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #e9e7e3;
+  --surface: #f6f5f2;
+  --surface-raised: #fcfbf9;
+  --ink: #17150f;
+  --ink-muted: #716d64;
+  --line: #ddd9d2;
+  --line-strong: #c9c4bc;
+  --nav-bg: #f2f1ed;
+  --nav-ink: #17150f;
+  --nav-muted: #6f6c65;
+  --nav-active-bg: #17150f;
+  --nav-active-ink: #f6f5f2;
+  --accent: #d34d02;
+  --accent-hover: #b84202;
+  --accent-ink: #ffffff;
+  --focus: #d34d02;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #161511;
+  --surface: #1d1c18;
+  --surface-raised: #232219;
+  --ink: #f1efe9;
+  --ink-muted: #a09c92;
+  --line: #2e2c26;
+  --line-strong: #413e35;
+  --nav-bg: #1a1915;
+  --nav-ink: #f1efe9;
+  --nav-muted: #9d998f;
+  --nav-active-bg: #f1efe9;
+  --nav-active-ink: #17150f;
+  --accent: #e8620a;
+  --accent-hover: #f07018;
+  --accent-ink: #17150f;
+  --focus: #e8620a;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-muted: var(--ink-muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-nav-bg: var(--nav-bg);
+  --color-nav-ink: var(--nav-ink);
+  --color-nav-muted: var(--nav-muted);
+  --color-nav-active-bg: var(--nav-active-bg);
+  --color-nav-active-ink: var(--nav-active-ink);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    sans-serif;
+  --font-mono:
+    ui-monospace, "SFMono-Regular", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas,
+    monospace;
+
+  --radius-card: 0.5rem;
+  --shadow-panel: 0 1px 2px rgb(0 0 0 / 0.05);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    overflow-x: clip;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
