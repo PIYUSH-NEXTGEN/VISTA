@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+coverage/
+
+# Local env files
+.env
+.env.*
+*.local
+
+# Test / e2e artifacts
+test-results/
+playwright-report/
+blob-report/
+.vitest/
+
+# Models and large downloaded assets (never commit)
+public/models/
+*.onnx
+*.wasm
+*.task
+*.bin
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+
+# Vite
+.vite/
+
+# Internal working files (user request)
+agent.md
+AGENTS.md
+design.png
+docs/agent-notes/

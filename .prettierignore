@@ -1,0 +1,7 @@
+dist
+coverage
+playwright-report
+blob-report
+node_modules
+public/models
+package-lock.json
