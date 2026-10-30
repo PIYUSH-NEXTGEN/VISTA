@@ -19,7 +19,7 @@ export function WorkspacePlaceholder({ id }: { id: WorkspaceId }) {
         </span>
         <h1
           id="placeholder-heading"
-          className="mt-6 font-mono text-[20px] font-bold tracking-[0.14em] text-ink uppercase"
+          className="mt-6 font-display text-[22px] leading-none text-ink uppercase"
         >
           {ws.label}
         </h1>

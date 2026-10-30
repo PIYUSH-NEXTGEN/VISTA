@@ -69,7 +69,7 @@ export function ThumbnailCard({ image, selected, store, onSelect }: ThumbnailCar
           </span>
         )}
       </span>
-      <span className="w-full truncate px-2.5 pt-2 font-mono text-[11px] text-ink">
+      <span className="w-full truncate border-t border-line px-2.5 pt-2 font-mono text-[11px] text-ink">
         {image.name}
       </span>
       <span className="px-2.5 pb-2 font-mono text-[10px] text-muted">

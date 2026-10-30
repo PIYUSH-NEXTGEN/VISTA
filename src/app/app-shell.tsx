@@ -17,7 +17,7 @@ function Logo() {
       >
         <span className="h-2.5 w-2.5 rounded-[3px] bg-accent" />
       </span>
-      <span className="text-[16px] font-bold tracking-[0.08em] text-ink sm:text-[17px]">
+      <span className="font-display text-[15px] leading-none text-ink sm:text-[16px]">
         VISTA_
       </span>
       <span className="sr-only">VISTA — private photo workbench</span>

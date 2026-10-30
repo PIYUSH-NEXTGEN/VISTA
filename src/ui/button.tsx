@@ -22,7 +22,7 @@ export function Button({
   return (
     <button
       type={type}
-      className={`inline-flex items-center justify-center gap-2.5 rounded-lg px-6 py-3.5 font-mono text-[13px] font-medium tracking-[0.14em] uppercase transition-colors ${styles} ${className}`}
+      className={`inline-flex items-center justify-center gap-2.5 rounded-full px-6 py-3.5 font-mono text-[13px] font-medium tracking-[0.14em] uppercase transition-colors ${styles} ${className}`}
       {...rest}
     >
       {children}

@@ -60,14 +60,19 @@ function Hero({ onOpenLibrary }: { onOpenLibrary: () => void }) {
           </span>
         </p>
 
-        <h1
-          id="hero-heading"
-          className="mt-9 text-[34px] leading-[1.05] font-bold tracking-tight text-balance sm:text-[56px] lg:text-[64px]"
-        >
-          The <span className="text-accent">offline workbench</span> for your photos
+        <h1 id="hero-heading" className="mt-7 tracking-tight text-ink">
+          <span className="block text-[15vw] leading-none font-display sm:text-[13vw] lg:text-[clamp(72px,9vw,116px)]">
+            VISTA
+            <span aria-hidden="true" className="text-accent">
+              _
+            </span>
+          </span>
+          <span className="mx-auto mt-6 block max-w-xl text-[17px] font-semibold text-balance leading-[1.5] sm:text-[20px]">
+            The <span className="text-accent">offline workbench</span> for your photos
+          </span>
         </h1>
 
-        <p className="mx-auto mt-7 max-w-xl text-[17px] leading-[1.65] text-muted text-pretty">
+        <p className="mx-auto mt-3 max-w-xl text-[15px] leading-[1.65] text-muted text-pretty sm:text-[16px]">
           VISTA runs entirely in your browser, on one private photo library: organize
           albums, find duplicates and blurry shots, compress and convert for any form, and
           extract text from receipts. Nothing uploads and nothing tracks you.
@@ -158,7 +163,7 @@ function Footer() {
   return (
     <footer className="bg-nav-bg">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-center sm:flex-row sm:px-6 sm:text-left">
-        <p className="flex items-center gap-2 font-mono text-[12px] tracking-[0.12em] text-muted uppercase">
+        <p className="flex items-center gap-2 font-display text-[12px] leading-none text-muted uppercase">
           <span aria-hidden="true" className="h-2 w-2 rounded-[2px] bg-accent" />
           VISTA_
         </p>

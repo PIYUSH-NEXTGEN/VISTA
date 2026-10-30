@@ -135,7 +135,7 @@ export function LibraryPage() {
           <p className="font-mono text-[11px] tracking-[0.14em] text-accent uppercase">
             Your device · No uploads
           </p>
-          <h1 className="mt-2 text-[30px] font-bold tracking-tight text-ink">Library</h1>
+          <h1 className="mt-2 font-display text-[30px] leading-none text-ink">Library</h1>
           <p className="mt-2 text-[14px] text-muted">
             {images.length} {images.length === 1 ? "image" : "images"} stored in this
             browser.
