@@ -18,8 +18,13 @@
 | Health duplicate and cached analysis                       | e2e pass               | e2e pass               | explicit unsupported message |
 | Profile image, contact sheet, PDF                          | e2e pass               | e2e pass               | explicit unsupported message |
 
-Source: `tests/e2e/home.spec.ts` under `npm run test:e2e`; storage behavior
-also has integration coverage in `tests/integration/storage.test.ts`.
+Source: `tests/e2e/home.spec.ts` under `npm run test:e2e`; storage behavior also
+has integration coverage in `tests/integration/storage.test.ts`.
+
+Mobile navigation, library layout, and keyboard activation passed in
+`tests/e2e/mobile.spec.ts` using Playwright's Pixel 5 emulation profile. The
+quota failure mapping is covered by a storage integration test that simulates
+an IndexedDB `QuotaExceededError`; an actual device quota limit was not induced.
 
 The test suite exercises Playwright's Chromium, Firefox, and WebKit engines.
 The table reflects `npm run test:e2e` against a freshly built preview. The
@@ -38,12 +43,16 @@ devices.
   file harness does not supply a populated directory selection.
 - Folder export was exercised with a mocked directory handle. A real operating
   system folder picker and write permission have not been manually verified.
-- Real Safari/iOS storage quotas, eviction, persistence prompts, and memory
-  behavior have not been tested on devices.
 - Persistent-storage request outcomes vary by browser and are not asserted
   as a specific grant/deny result in the e2e suite.
-- Real Safari/iOS, accessibility with axe or a screen reader, large-library
-  performance, and quota-exceeded recovery have not been audited.
+- Real Safari/iOS storage quotas, eviction, persistence prompts, and memory
+  behavior have not been tested on devices.
+- Accessibility has only a focused mobile keyboard smoke check; axe, full
+  keyboard traversal of every workspace, screen-reader behavior, and contrast
+  have not been audited.
+- Large-library performance and repeated navigation memory behavior have not
+  been measured. The production build reports gzip bundle sizes in the Phase 8
+  report; no Lighthouse run was performed.
 - Importing a whole directory directly into the Library is not implemented;
   folder selection is currently a Tools batch source.
 - WebGPU availability for AI features (Phase 7) — feature-detect, never
