@@ -5,16 +5,25 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
  * Unused by any screen yet — Phase 1 will use it for delete confirmations. */
 
 interface DialogProps {
-  trigger: ReactElement;
+  trigger?: ReactElement;
   title: string;
   description?: string;
   children?: ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function Dialog({ trigger, title, description, children }: DialogProps) {
+export function Dialog({
+  trigger,
+  title,
+  description,
+  children,
+  open,
+  onOpenChange,
+}: DialogProps) {
   return (
-    <DialogPrimitive.Root>
-      <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger>
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
+      {trigger && <DialogPrimitive.Trigger asChild>{trigger}</DialogPrimitive.Trigger>}
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/50 data-[state=open]:animate-in" />
         <DialogPrimitive.Content className="fixed top-1/2 left-1/2 z-50 w-[min(90vw,28rem)] -translate-x-1/2 -translate-y-1/2 rounded-lg border border-line bg-raised p-6 shadow-panel focus:outline-none">

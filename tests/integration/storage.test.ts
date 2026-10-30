@@ -36,11 +36,11 @@ afterEach(async () => {
 });
 
 describe("Dexie library storage", () => {
-  it("creates the version 1 schema and persists it across reopen", async () => {
+  it("creates the version 2 schema and persists it across reopen", async () => {
     const database = openTestDatabase();
     await database.open();
 
-    expect(database.verno).toBe(1);
+    expect(database.verno).toBe(2);
     expect(database.tables.map((table) => table.name).sort()).toEqual([
       "albumItems",
       "albums",
@@ -159,5 +159,73 @@ describe("Dexie library storage", () => {
     await expect(database.edits.count()).resolves.toBe(0);
     await expect(database.ocr.count()).resolves.toBe(0);
     await expect(database.vectors.count()).resolves.toBe(0);
+  });
+
+  it("creates, renames, and deletes albums without deleting library images", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    await store.addImage(imageRecord("kept"), new Blob(["original"]), new Blob(["thumb"]));
+
+    const album = await store.createAlbum("  Summer trip  ");
+    expect(album.name).toBe("Summer trip");
+    await store.renameAlbum(album.id, "Weekend away");
+    await store.addImagesToAlbum(album.id, ["kept"]);
+
+    await expect(store.listAlbums()).resolves.toMatchObject([
+      { album: { id: album.id, name: "Weekend away" }, imageCount: 1 },
+    ]);
+
+    await store.deleteAlbum(album.id);
+    await expect(store.listAlbums()).resolves.toEqual([]);
+    await expect(store.getImage("kept")).resolves.toMatchObject({
+      id: "kept",
+    });
+    await expect(database.blobs.get("kept")).resolves.toBeDefined();
+  });
+
+  it("adds, removes, orders, and changes the cover for album photos", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    for (const id of ["first", "second", "third"]) {
+      await store.addImage(imageRecord(id), new Blob([id]), new Blob([`${id}-thumb`]));
+    }
+
+    const album = await store.createAlbum("Trip");
+    await store.addImagesToAlbum(album.id, ["first", "second", "third"]);
+    await store.reorderAlbumItem(album.id, "third", 0);
+    await store.setAlbumCover(album.id, "second");
+
+    await expect(store.listAlbumImages(album.id)).resolves.toEqual([
+      expect.objectContaining({ id: "third" }),
+      expect.objectContaining({ id: "first" }),
+      expect.objectContaining({ id: "second" }),
+    ]);
+    await expect(database.albums.get(album.id)).resolves.toMatchObject({
+      coverImageId: "second",
+    });
+
+    await store.removeImagesFromAlbum(album.id, ["second"]);
+    await expect(store.listAlbumImages(album.id)).resolves.toEqual([
+      expect.objectContaining({ id: "third" }),
+      expect.objectContaining({ id: "first" }),
+    ]);
+    await expect(database.albums.get(album.id)).resolves.toMatchObject({
+      coverImageId: "third",
+    });
+    await expect(store.getImage("second")).resolves.toMatchObject({ id: "second" });
+  });
+
+  it("rejects blank album names and invalid cover photos", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    const album = await store.createAlbum("Trip");
+
+    await expect(store.createAlbum(" \t ")).rejects.toThrow("An album needs a name.");
+    await expect(store.renameAlbum(album.id, "  ")).rejects.toThrow(
+      "An album needs a name.",
+    );
+    await expect(store.setAlbumCover(album.id, "not-a-member")).rejects.toThrow(
+      "That photo is not in this album.",
+    );
   });
 });

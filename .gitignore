@@ -55,3 +55,17 @@ agent.md
 AGENTS.md
 design.png
 docs/agent-notes/
+
+# Temporary agent diagnostics and repair scripts
+scripts/brace-check.ps1
+scripts/check-lines.ps1
+scripts/dump-lines.ps1
+scripts/fix-albums.ps1
+scripts/fix-albums2.ps1
+scripts/fix-database-brace.ps1
+scripts/lint-fmt.ps1
+scripts/run-check.ps1
+scripts/tsc-check.ps1
+scripts/tsc3.ps1
+tsc-out.txt
+typecheck-out.txt

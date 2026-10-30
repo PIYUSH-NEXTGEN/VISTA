@@ -96,6 +96,15 @@ export function FolderImportIcon(props: IconProps) {
   );
 }
 
+export function AlbumIcon(props: IconProps) {
+  return (
+    <svg {...icon(props)}>
+      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+      <path d="M7 7h4M7 11h4" />
+    </svg>
+  );
+}
+
 export function PlusMark({ className = "" }: { className?: string }) {
   return (
     <span

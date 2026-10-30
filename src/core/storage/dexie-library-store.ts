@@ -1,6 +1,16 @@
-import { getVistaDatabase, type VistaDatabase } from "@/core/storage/database";
-import type { ImageBlobRecord, ImageRecord, ThumbnailRecord } from "@/core/storage/models";
-import { StorageQuotaError, type LibraryStore } from "@/core/storage/library-store";
+﻿import { getVistaDatabase, type VistaDatabase } from "@/core/storage/database";
+import type {
+  AlbumRecord,
+  ImageBlobRecord,
+  ImageRecord,
+  ThumbnailRecord,
+} from "@/core/storage/models";
+import {
+  AlbumError,
+  StorageQuotaError,
+  type AlbumSummary,
+  type LibraryStore,
+} from "@/core/storage/library-store";
 
 export class DexieLibraryStore implements LibraryStore {
   constructor(private readonly database: VistaDatabase = getVistaDatabase()) {}
@@ -48,7 +58,11 @@ export class DexieLibraryStore implements LibraryStore {
   }
 
   listImages(): Promise<ImageRecord[]> {
-    return this.database.images.orderBy("importedAt").reverse().toArray();
+    return this.database.images
+      .orderBy("importedAt")
+      .reverse()
+      .filter((image) => image.deletedAt === undefined)
+      .toArray();
   }
 
   getImage(id: string): Promise<ImageRecord | undefined> {
@@ -57,24 +71,49 @@ export class DexieLibraryStore implements LibraryStore {
 
   async getOriginal(id: string): Promise<Blob | undefined> {
     const stored = await this.database.blobs.get(id);
-    if (!stored) return undefined;
-    if (stored.blob instanceof ArrayBuffer) {
-      return new Blob([stored.blob], { type: stored.mimeType });
-    }
-    return stored.blob;
+    return stored === undefined ? undefined : storedBlob(stored.blob, stored.mimeType);
   }
 
   async getThumbnail(id: string): Promise<Blob | undefined> {
     const stored = await this.database.thumbs.get(id);
-    if (!stored) return undefined;
-    if (stored.blob instanceof ArrayBuffer) {
-      return new Blob([stored.blob], { type: stored.mimeType });
-    }
-    return stored.blob;
+    return stored === undefined ? undefined : storedBlob(stored.blob, stored.mimeType);
   }
 
-  async deleteImage(id: string): Promise<void> {
-    await this.database.transaction(
+  deleteImage(id: string): Promise<void> {
+    return this.purgeImages([id]);
+  }
+
+  /* Trash flow */
+
+  async trashImages(ids: string[]): Promise<void> {
+    const trashedAt = Date.now();
+    await this.database.transaction("rw", this.database.images, async () => {
+      for (const id of ids) {
+        const image = await this.database.images.get(id);
+        if (image && image.deletedAt === undefined) {
+          await this.database.images.update(id, { deletedAt: trashedAt });
+        }
+      }
+    });
+  }
+
+  async restoreImages(ids: string[]): Promise<void> {
+    await this.database.transaction("rw", this.database.images, async () => {
+      for (const id of ids) {
+        const image = await this.database.images.get(id);
+        if (image && image.deletedAt !== undefined) {
+          await removeDeletedAt(this.database, id);
+        }
+      }
+    });
+  }
+
+  listTrash(): Promise<ImageRecord[]> {
+    return this.database.images.where("deletedAt").above(0).reverse().toArray();
+  }
+
+  async emptyTrash(): Promise<number> {
+    return this.database.transaction(
       "rw",
       [
         this.database.images,
@@ -86,15 +125,213 @@ export class DexieLibraryStore implements LibraryStore {
         this.database.vectors,
       ],
       async () => {
-        await Promise.all([
-          this.database.images.delete(id),
-          this.database.blobs.delete(id),
-          this.database.thumbs.delete(id),
-          this.database.edits.delete(id),
-          this.database.ocr.delete(id),
-          this.database.vectors.delete(id),
-          this.database.albumItems.where("imageId").equals(id).delete(),
-        ]);
+        const ids = await this.database.images.where("deletedAt").above(0).primaryKeys();
+        for (const id of ids) {
+          await deleteImageRows(this.database, String(id));
+        }
+        return ids.length;
+      },
+    );
+  }
+
+  /** Permanent removal of the given images, everything related, in one transaction. */
+  purgeImages(ids: string[]): Promise<void> {
+    return this.database.transaction(
+      "rw",
+      [
+        this.database.images,
+        this.database.blobs,
+        this.database.thumbs,
+        this.database.albumItems,
+        this.database.edits,
+        this.database.ocr,
+        this.database.vectors,
+      ],
+      async () => {
+        for (const id of ids) {
+          await deleteImageRows(this.database, id);
+        }
+      },
+    );
+  }
+
+  getSetting(key: string): Promise<unknown> {
+    return this.database.settings
+      .get(key)
+      .then((row) => (row === undefined ? undefined : row.value));
+  }
+
+  setSetting(key: string, value: unknown): Promise<void> {
+    return this.database.settings.put({ key, value }).then(() => undefined);
+  }
+
+  /* Albums */
+
+  async listAlbums(): Promise<AlbumSummary[]> {
+    const [albums, items, liveImageIds] = await Promise.all([
+      this.database.albums.orderBy("createdAt").toArray(),
+      this.database.albumItems.toArray(),
+      this.database.images
+        .toCollection()
+        .filter((image) => image.deletedAt === undefined)
+        .primaryKeys()
+        .then((keys) => new Set(keys.map(String))),
+    ]);
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      if (liveImageIds.has(item.imageId)) {
+        counts.set(item.albumId, (counts.get(item.albumId) ?? 0) + 1);
+      }
+    }
+    return albums.map((album) => ({
+      album,
+      imageCount: counts.get(album.id) ?? 0,
+    }));
+  }
+
+  async listAlbumImages(albumId: string): Promise<ImageRecord[]> {
+    const items = await this.database.albumItems
+      .where("albumId")
+      .equals(albumId)
+      .sortBy("sortOrder");
+    const images = await this.database.images.bulkGet(items.map((item) => item.imageId));
+    return images.filter(
+      (image): image is ImageRecord => image !== undefined && image.deletedAt === undefined,
+    );
+  }
+
+  async createAlbum(name: string): Promise<AlbumRecord> {
+    const record: AlbumRecord = {
+      id: crypto.randomUUID(),
+      name: validateAlbumName(name),
+      createdAt: Date.now(),
+    };
+    await this.database.albums.add(record);
+    return record;
+  }
+
+  async renameAlbum(albumId: string, name: string): Promise<void> {
+    await requireAlbum(this.database, albumId);
+    await this.database.albums.update(albumId, { name: validateAlbumName(name) });
+  }
+
+  deleteAlbum(albumId: string): Promise<void> {
+    return this.database.transaction(
+      "rw",
+      this.database.albums,
+      this.database.albumItems,
+      async () => {
+        await requireAlbum(this.database, albumId);
+        await this.database.albums.delete(albumId);
+        await this.database.albumItems.where("albumId").equals(albumId).delete();
+      },
+    );
+  }
+
+  async addImagesToAlbum(albumId: string, imageIds: string[]): Promise<void> {
+    await this.database.transaction(
+      "rw",
+      this.database.albums,
+      this.database.albumItems,
+      this.database.images,
+      async () => {
+        const album = await requireAlbum(this.database, albumId);
+        // Wait for the full membership set before writing so new items' sort
+        // order continues after the last existing item.
+        const existing = await this.database.albumItems
+          .where("albumId")
+          .equals(albumId)
+          .toArray();
+        const memberIds = new Set(existing.map((item) => item.imageId));
+        let nextOrder = existing.reduce((max, item) => Math.max(max, item.sortOrder), -1);
+        for (const imageId of imageIds) {
+          if (memberIds.has(imageId)) continue;
+          const image = await this.database.images.get(imageId);
+          if (!image || image.deletedAt !== undefined) continue;
+          nextOrder += 1;
+          memberIds.add(imageId);
+          await this.database.albumItems.add({ albumId, imageId, sortOrder: nextOrder });
+          if (album.coverImageId === undefined) {
+            await this.database.albums.update(albumId, { coverImageId: imageId });
+          }
+        }
+      },
+    );
+  }
+
+  async removeImagesFromAlbum(albumId: string, imageIds: string[]): Promise<void> {
+    await this.database.transaction(
+      "rw",
+      this.database.albums,
+      this.database.albumItems,
+      async () => {
+        const album = await requireAlbum(this.database, albumId);
+        for (const imageId of imageIds) {
+          await this.database.albumItems.delete([albumId, imageId]);
+        }
+        if (album.coverImageId !== undefined && imageIds.includes(album.coverImageId)) {
+          const remaining = await this.database.albumItems
+            .where("albumId")
+            .equals(albumId)
+            .sortBy("sortOrder");
+          const nextCover = remaining[0]?.imageId;
+          if (nextCover === undefined) {
+            await this.database.albums.update(albumId, { coverImageId: undefined });
+          } else {
+            await this.database.albums.update(albumId, { coverImageId: nextCover });
+          }
+        }
+      },
+    );
+  }
+
+  async reorderAlbumItem(
+    albumId: string,
+    imageId: string,
+    position: number,
+  ): Promise<void> {
+    await this.database.transaction(
+      "rw",
+      this.database.albums,
+      this.database.albumItems,
+      async () => {
+        await requireAlbum(this.database, albumId);
+        const items = await this.database.albumItems
+          .where("albumId")
+          .equals(albumId)
+          .sortBy("sortOrder");
+        const currentIndex = items.findIndex((item) => item.imageId === imageId);
+        if (currentIndex < 0) {
+          throw new AlbumError("That photo is not in this album.");
+        }
+        const target = Math.max(0, Math.min(position, items.length - 1));
+        if (target === currentIndex) return;
+        const moved = items.splice(currentIndex, 1)[0];
+        if (moved === undefined) return;
+        items.splice(target, 0, moved);
+        for (const [order, item] of items.entries()) {
+          item.sortOrder = order;
+          await this.database.albumItems.put(item);
+        }
+      },
+    );
+  }
+
+  async setAlbumCover(albumId: string, imageId: string): Promise<void> {
+    await this.database.transaction(
+      "rw",
+      this.database.albums,
+      this.database.albumItems,
+      async () => {
+        await requireAlbum(this.database, albumId);
+        const count = await this.database.albumItems
+          .where("[albumId+imageId]")
+          .equals([albumId, imageId])
+          .count();
+        if (count === 0) {
+          throw new AlbumError("That photo is not in this album.");
+        }
+        await this.database.albums.update(albumId, { coverImageId: imageId });
       },
     );
   }
@@ -116,6 +353,51 @@ export class DexieLibraryStore implements LibraryStore {
       },
     );
   }
+}
+
+async function requireAlbum(
+  database: VistaDatabase,
+  albumId: string,
+): Promise<AlbumRecord> {
+  const album = await database.albums.get(albumId);
+  if (!album) throw new AlbumError("This album no longer exists.");
+  return album;
+}
+
+function validateAlbumName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length === 0) {
+    throw new AlbumError("An album needs a name.");
+  }
+  return trimmed;
+}
+
+async function deleteImageRows(database: VistaDatabase, id: string): Promise<void> {
+  await Promise.all([
+    database.images.delete(id),
+    database.blobs.delete(id),
+    database.thumbs.delete(id),
+    database.edits.delete(id),
+    database.ocr.delete(id),
+    database.vectors.delete(id),
+    database.albumItems.where("imageId").equals(id).delete(),
+  ]);
+}
+
+async function removeDeletedAt(database: VistaDatabase, id: string): Promise<void> {
+  await database.images
+    .where("id")
+    .equals(id)
+    .modify((image: ImageRecord) => {
+      delete image.deletedAt;
+    });
+}
+
+function storedBlob(blob: Blob | ArrayBuffer, mimeType: string): Blob {
+  if (blob instanceof ArrayBuffer) {
+    return new Blob([blob], { type: mimeType });
+  }
+  return blob;
 }
 
 function isQuotaExceeded(error: unknown): boolean {

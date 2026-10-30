@@ -11,6 +11,21 @@ import type {
   VectorRecord,
 } from "@/core/storage/models";
 
+const SCHEMA_V1_STORES: Record<string, string> = {
+  images: "&id, name, mimeType, sizeBytes, width, height, importedAt, takenAt, contentHash",
+  blobs: "&id",
+  thumbs: "&id",
+  albums: "&id, name, createdAt",
+  albumItems: "&[albumId+imageId], albumId, imageId, sortOrder",
+  edits: "&imageId",
+  ocr: "&imageId",
+  vectors: "&imageId",
+  settings: "&key",
+};
+
+const SCHEMA_V2_IMAGES =
+  "&id, name, mimeType, sizeBytes, width, height, importedAt, takenAt, contentHash, deletedAt";
+
 export class VistaDatabase extends Dexie {
   images!: Table<ImageRecord, string>;
   blobs!: Table<ImageBlobRecord, string>;
@@ -24,18 +39,26 @@ export class VistaDatabase extends Dexie {
 
   constructor(name = "vista") {
     super(name);
-    this.version(1).stores({
-      images:
-        "&id, name, mimeType, sizeBytes, width, height, importedAt, takenAt, contentHash",
-      blobs: "&id",
-      thumbs: "&id",
-      albums: "&id, name, createdAt",
-      albumItems: "&[albumId+imageId], albumId, imageId, sortOrder",
-      edits: "&imageId",
-      ocr: "&imageId",
-      vectors: "&imageId",
-      settings: "&key",
-    });
+    // v1 shipped with the Phase 1 import pipeline. Never modify it; extend
+    // schema changes in a new version with an upgrade hook (agent.md 6.2).
+    this.version(1).stores(SCHEMA_V1_STORES);
+    // v2 adds the trash flow: a deletedAt index on images. Old rows stay valid
+    // because ImageRecord.deletedAt is optional; the upgrade only normalises
+    // rows that somehow carry a null deletedAt.
+    this.version(2)
+      .stores({ ...SCHEMA_V1_STORES, images: SCHEMA_V2_IMAGES })
+      .upgrade((transaction) =>
+        transaction
+          .table("images")
+          .toCollection()
+          .modify((image: ImageRecord) => {
+            if (image.deletedAt === null) {
+              delete image.deletedAt;
+              return image;
+            }
+            return image;
+          }),
+      );
   }
 }
 

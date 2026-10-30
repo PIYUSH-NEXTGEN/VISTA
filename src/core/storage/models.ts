@@ -10,6 +10,8 @@ export interface ImageRecord {
   contentHash: string;
   orientation?: number;
   camera?: string;
+  /** Unix ms when the image moved to trash; absent while it lives in the library. */
+  deletedAt?: number;
 }
 
 export interface ImageBlobRecord {
