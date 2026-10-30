@@ -12,6 +12,15 @@ export interface ImageRecord {
   camera?: string;
   /** Unix ms when the image moved to trash; absent while it lives in the library. */
   deletedAt?: number;
+  /** Cached perceptual hash and quality metrics populated by library analysis. */
+  perceptualHash?: string;
+  quality?: ImageQualityMetrics;
+}
+
+export interface ImageQualityMetrics {
+  brightness: number;
+  focusScore: number;
+  analyzedAt: number;
 }
 
 export interface ImageBlobRecord {

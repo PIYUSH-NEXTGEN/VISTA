@@ -25,6 +25,7 @@ const SCHEMA_V1_STORES: Record<string, string> = {
 
 const SCHEMA_V2_IMAGES =
   "&id, name, mimeType, sizeBytes, width, height, importedAt, takenAt, contentHash, deletedAt";
+const SCHEMA_V3_IMAGES = `${SCHEMA_V2_IMAGES}, perceptualHash`;
 
 export class VistaDatabase extends Dexie {
   images!: Table<ImageRecord, string>;
@@ -59,6 +60,10 @@ export class VistaDatabase extends Dexie {
             return image;
           }),
       );
+    // v3 adds cached perceptual hashes for near-duplicate buckets. Existing
+    // records are analyzed on demand in Phase 5; the upgrade does not decode
+    // images or block the IndexedDB migration.
+    this.version(3).stores({ ...SCHEMA_V1_STORES, images: SCHEMA_V3_IMAGES });
   }
 }
 

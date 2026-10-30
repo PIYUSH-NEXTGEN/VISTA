@@ -1,6 +1,7 @@
 ﻿import { getVistaDatabase, type VistaDatabase } from "@/core/storage/database";
 import type {
   AlbumRecord,
+  ImageQualityMetrics,
   ImageBlobRecord,
   ImageRecord,
   ThumbnailRecord,
@@ -79,6 +80,26 @@ export class DexieLibraryStore implements LibraryStore {
     return stored === undefined ? undefined : storedBlob(stored.blob, stored.mimeType);
   }
 
+  async saveImageAnalysis(
+    id: string,
+    perceptualHash: string,
+    quality: ImageQualityMetrics,
+  ): Promise<void> {
+    await this.database.images.update(id, { perceptualHash, quality });
+  }
+
+  getEdit(id: string) {
+    return this.database.edits.get(id);
+  }
+
+  async saveEdit(edit: {
+    imageId: string;
+    steps: unknown[];
+    cachedRender?: Blob;
+  }): Promise<void> {
+    await this.database.edits.put(edit);
+  }
+
   deleteImage(id: string): Promise<void> {
     return this.purgeImages([id]);
   }
@@ -123,12 +144,14 @@ export class DexieLibraryStore implements LibraryStore {
         this.database.edits,
         this.database.ocr,
         this.database.vectors,
+        this.database.albums,
       ],
       async () => {
         const ids = await this.database.images.where("deletedAt").above(0).primaryKeys();
         for (const id of ids) {
           await deleteImageRows(this.database, String(id));
         }
+        await repairAlbumCovers(this.database, new Set(ids.map(String)));
         return ids.length;
       },
     );
@@ -146,11 +169,13 @@ export class DexieLibraryStore implements LibraryStore {
         this.database.edits,
         this.database.ocr,
         this.database.vectors,
+        this.database.albums,
       ],
       async () => {
         for (const id of ids) {
           await deleteImageRows(this.database, id);
         }
+        await repairAlbumCovers(this.database, new Set(ids));
       },
     );
   }
@@ -382,6 +407,30 @@ async function deleteImageRows(database: VistaDatabase, id: string): Promise<voi
     database.vectors.delete(id),
     database.albumItems.where("imageId").equals(id).delete(),
   ]);
+}
+
+async function repairAlbumCovers(
+  database: VistaDatabase,
+  deletedIds: Set<string>,
+): Promise<void> {
+  const albums = await database.albums.toArray();
+  for (const album of albums) {
+    if (!album.coverImageId || !deletedIds.has(album.coverImageId)) continue;
+    const remaining = await database.albumItems
+      .where("albumId")
+      .equals(album.id)
+      .sortBy("sortOrder");
+    let nextImage: (typeof remaining)[number] | undefined;
+    for (const item of remaining) {
+      if (deletedIds.has(item.imageId)) continue;
+      const image = await database.images.get(item.imageId);
+      if (image && image.deletedAt === undefined) {
+        nextImage = item;
+        break;
+      }
+    }
+    await database.albums.update(album.id, { coverImageId: nextImage?.imageId });
+  }
 }
 
 async function removeDeletedAt(database: VistaDatabase, id: string): Promise<void> {

@@ -1,4 +1,9 @@
-import type { AlbumRecord, ImageRecord } from "@/core/storage/models";
+import type {
+  AlbumRecord,
+  EditRecord,
+  ImageQualityMetrics,
+  ImageRecord,
+} from "@/core/storage/models";
 
 export interface AlbumSummary {
   album: AlbumRecord;
@@ -13,6 +18,13 @@ export interface LibraryStore {
   getImage(id: string): Promise<ImageRecord | undefined>;
   getOriginal(id: string): Promise<Blob | undefined>;
   getThumbnail(id: string): Promise<Blob | undefined>;
+  saveImageAnalysis(
+    id: string,
+    perceptualHash: string,
+    quality: ImageQualityMetrics,
+  ): Promise<void>;
+  getEdit(id: string): Promise<EditRecord | undefined>;
+  saveEdit(edit: EditRecord): Promise<void>;
   /** Removes an image and every related row in one transaction. */
   deleteImage(id: string): Promise<void>;
 
