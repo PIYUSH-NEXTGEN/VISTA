@@ -1,6 +1,7 @@
 // @vitest-environment node
 import "fake-indexeddb/auto";
 import { afterEach, describe, expect, it } from "vitest";
+import Dexie from "dexie";
 import { VistaDatabase } from "@/core/storage/database";
 import { DexieLibraryStore } from "@/core/storage/dexie-library-store";
 import type { ImageRecord } from "@/core/storage/models";
@@ -36,11 +37,68 @@ afterEach(async () => {
 });
 
 describe("Dexie library storage", () => {
-  it("creates the version 2 schema and persists it across reopen", async () => {
+  it("migrates a version 1 library into the analysis-aware schema", async () => {
+    const name = `vista-storage-v1-migration-${databases.length}`;
+    const legacy = new Dexie(name);
+    legacy.version(1).stores({
+      images:
+        "&id, name, mimeType, sizeBytes, width, height, importedAt, takenAt, contentHash",
+      blobs: "&id",
+      thumbs: "&id",
+      albums: "&id, name, createdAt",
+      albumItems: "&[albumId+imageId], albumId, imageId, sortOrder",
+      edits: "&imageId",
+      ocr: "&imageId",
+      vectors: "&imageId",
+      settings: "&key",
+    });
+    await legacy.open();
+    await legacy.table("images").add(imageRecord("legacy"));
+    await legacy.close();
+
+    const migrated = new VistaDatabase(name);
+    databases.push(migrated);
+    await migrated.open();
+    expect(migrated.verno).toBe(3);
+    const row = await migrated.images.get("legacy");
+    expect(row?.id).toBe("legacy");
+    expect(row?.deletedAt).toBeUndefined();
+  });
+
+  it("preserves trash rows while adding the perceptual hash index in version 3", async () => {
+    const name = `vista-storage-v2-migration-${databases.length}`;
+    const legacy = new Dexie(name);
+    legacy.version(2).stores({
+      images:
+        "&id, name, mimeType, sizeBytes, width, height, importedAt, takenAt, contentHash, deletedAt",
+      blobs: "&id",
+      thumbs: "&id",
+      albums: "&id, name, createdAt",
+      albumItems: "&[albumId+imageId], albumId, imageId, sortOrder",
+      edits: "&imageId",
+      ocr: "&imageId",
+      vectors: "&imageId",
+      settings: "&key",
+    });
+    await legacy.open();
+    await legacy.table("images").add({ ...imageRecord("trashed"), deletedAt: 55 });
+    await legacy.close();
+
+    const upgraded = new VistaDatabase(name);
+    databases.push(upgraded);
+    await upgraded.open();
+    expect(upgraded.verno).toBe(3);
+    await expect(upgraded.images.get("trashed")).resolves.toMatchObject({ deletedAt: 55 });
+    expect(
+      upgraded.images.schema.indexes.some((index) => index.name === "perceptualHash"),
+    ).toBe(true);
+  });
+
+  it("creates the version 3 schema and persists it across reopen", async () => {
     const database = openTestDatabase();
     await database.open();
 
-    expect(database.verno).toBe(2);
+    expect(database.verno).toBe(3);
     expect(database.tables.map((table) => table.name).sort()).toEqual([
       "albumItems",
       "albums",
@@ -79,6 +137,39 @@ describe("Dexie library storage", () => {
     expect(storedThumbnail).toBeInstanceOf(Blob);
     await expect(storedOriginal?.text()).resolves.toBe("original");
     await expect(storedThumbnail?.text()).resolves.toBe("thumbnail");
+  });
+
+  it("persists per-image edit steps without replacing the original blob", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    const original = new Blob(["unchanged original"], { type: "image/png" });
+    await store.addImage(imageRecord("edited"), original, new Blob(["thumb"]));
+    await store.saveEdit({ imageId: "edited", steps: [{ type: "rotate", degrees: 90 }] });
+    await expect(store.getEdit("edited")).resolves.toMatchObject({
+      steps: [{ type: "rotate", degrees: 90 }],
+    });
+    await expect((await store.getOriginal("edited"))?.text()).resolves.toBe(
+      "unchanged original",
+    );
+  });
+
+  it("persists cached quality metrics and perceptual hashes", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    await store.addImage(
+      imageRecord("analyzed"),
+      new Blob(["source"]),
+      new Blob(["thumb"]),
+    );
+    await store.saveImageAnalysis("analyzed", "0123456789abcdef", {
+      brightness: 118,
+      focusScore: 44.5,
+      analyzedAt: 123,
+    });
+    await expect(database.images.get("analyzed")).resolves.toMatchObject({
+      perceptualHash: "0123456789abcdef",
+      quality: { brightness: 118, focusScore: 44.5, analyzedAt: 123 },
+    });
   });
 
   it("recreates original Blobs from the ArrayBuffer compatibility representation", async () => {
@@ -159,6 +250,60 @@ describe("Dexie library storage", () => {
     await expect(database.edits.count()).resolves.toBe(0);
     await expect(database.ocr.count()).resolves.toBe(0);
     await expect(database.vectors.count()).resolves.toBe(0);
+  });
+
+  it("moves photos to trash and restores them without deleting dependent data", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    await store.addImage(
+      imageRecord("trash-me"),
+      new Blob(["original"]),
+      new Blob(["thumb"]),
+    );
+    await database.edits.add({
+      imageId: "trash-me",
+      steps: [{ type: "rotate", degrees: 90 }],
+    });
+    await store.trashImages(["trash-me"]);
+    await expect(store.listImages()).resolves.toEqual([]);
+    await expect(store.listTrash()).resolves.toMatchObject([{ id: "trash-me" }]);
+    await expect(database.blobs.get("trash-me")).resolves.toBeDefined();
+    await store.restoreImages(["trash-me"]);
+    await expect(store.listImages()).resolves.toMatchObject([{ id: "trash-me" }]);
+    await expect(database.edits.get("trash-me")).resolves.toBeDefined();
+  });
+
+  it("permanently empties trash with all related rows", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    await store.addImage(
+      imageRecord("purge-me"),
+      new Blob(["original"]),
+      new Blob(["thumb"]),
+    );
+    await database.edits.add({ imageId: "purge-me", steps: [] });
+    await store.trashImages(["purge-me"]);
+    await expect(store.emptyTrash()).resolves.toBe(1);
+    await expect(database.images.get("purge-me")).resolves.toBeUndefined();
+    await expect(database.blobs.get("purge-me")).resolves.toBeUndefined();
+    await expect(database.thumbs.get("purge-me")).resolves.toBeUndefined();
+    await expect(database.edits.get("purge-me")).resolves.toBeUndefined();
+  });
+
+  it("repairs an album cover when its photo is permanently purged", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    for (const id of ["cover", "replacement"]) {
+      await store.addImage(imageRecord(id), new Blob([id]), new Blob([`${id}-thumb`]));
+    }
+    const album = await store.createAlbum("Cover test");
+    await store.addImagesToAlbum(album.id, ["cover", "replacement"]);
+    await store.setAlbumCover(album.id, "cover");
+    await store.trashImages(["cover"]);
+    await store.purgeImages(["cover"]);
+    await expect(database.albums.get(album.id)).resolves.toMatchObject({
+      coverImageId: "replacement",
+    });
   });
 
   it("creates, renames, and deletes albums without deleting library images", async () => {

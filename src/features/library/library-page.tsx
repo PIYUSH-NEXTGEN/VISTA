@@ -20,8 +20,10 @@ import { StorageMeter } from "@/features/library/storage-meter";
 import { ThumbnailCard } from "@/features/library/thumbnail-card";
 import { AlbumsPanel } from "@/features/library/albums-panel";
 import { useImageImport } from "@/features/library/use-image-import";
+import { BackupClient } from "@/core/backup/backup-client";
 
 const libraryStore = new DexieLibraryStore();
+const backupClient = new BackupClient();
 
 export function LibraryPage() {
   const [images, setImages] = useState<ImageRecord[]>([]);
@@ -36,6 +38,13 @@ export function LibraryPage() {
   const [formatFilter, setFormatFilter] = useState<FormatFilterKey>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [albumsOpen, setAlbumsOpen] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [trashOpen, setTrashOpen] = useState(false);
+  const [trashImages, setTrashImages] = useState<ImageRecord[]>([]);
+  const [backupReminder, setBackupReminder] = useState(
+    "A recent backup helps protect photos if browser storage is cleared.",
+  );
+  const backupInput = useRef<HTMLInputElement>(null);
 
   const UNDO_WINDOW_MS = 30_000;
   const [pendingUndo, setPendingUndo] = useState<
@@ -79,6 +88,66 @@ export function LibraryPage() {
   useEffect(() => {
     void refreshImages();
   }, [refreshImages]);
+
+  useEffect(() => {
+    let active = true;
+    void libraryStore.getSetting("lastBackupAt").then((value) => {
+      if (!active || typeof value !== "number") return;
+      const ageDays = Math.floor((Date.now() - value) / (24 * 60 * 60 * 1000));
+      setBackupReminder(
+        ageDays >= 30
+          ? `Your last backup was ${ageDays} days ago. Export a fresh copy.`
+          : `Last backup: ${new Date(value).toLocaleDateString()}.`,
+      );
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => () => backupClient.dispose(), []);
+
+  async function exportBackup() {
+    setBackupBusy(true);
+    try {
+      const archive = await backupClient.exportLibrary();
+      const url = URL.createObjectURL(archive);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `vista-backup-${new Date().toISOString().slice(0, 10)}.zip`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      const timestamp = Date.now();
+      await libraryStore.setSetting("lastBackupAt", timestamp);
+      setBackupReminder(`Last backup: ${new Date(timestamp).toLocaleDateString()}.`);
+      setNotice("Backup downloaded to your device.");
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "The backup could not be created.",
+      );
+    } finally {
+      setBackupBusy(false);
+    }
+  }
+
+  async function importBackup(file: File | undefined) {
+    if (!file) return;
+    setBackupBusy(true);
+    try {
+      const result = await backupClient.importLibrary(file);
+      await refreshImages();
+      setSelectedIds(new Set());
+      setNotice(
+        `Restored ${result.imported} image${result.imported === 1 ? "" : "s"}; skipped ${result.skipped}.`,
+      );
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "The backup could not be restored.",
+      );
+    } finally {
+      setBackupBusy(false);
+    }
+  }
 
   useEffect(() => {
     const element = scrollContainer.current;
@@ -149,6 +218,12 @@ export function LibraryPage() {
     if (selectedIds.size === 0) return;
     const toTrash = images.filter((image) => selectedIds.has(image.id));
     if (toTrash.length === 0) return;
+    if (
+      !window.confirm(
+        `Move ${toTrash.length} selected photo${toTrash.length === 1 ? "" : "s"} to Trash? You can restore them for 30 seconds.`,
+      )
+    )
+      return;
 
     if (undoTimer.current) {
       clearTimeout(undoTimer.current);
@@ -178,6 +253,66 @@ export function LibraryPage() {
           ? error.message
           : "The selected images could not be moved to trash.",
       );
+    }
+  }
+
+  async function toggleTrash() {
+    if (trashOpen) {
+      setTrashOpen(false);
+      return;
+    }
+    try {
+      setTrashImages(await libraryStore.listTrash());
+      setTrashOpen(true);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Trash could not be opened.");
+    }
+  }
+
+  async function restoreTrashImage(image: ImageRecord) {
+    try {
+      await libraryStore.restoreImages([image.id]);
+      setTrashImages((items) => items.filter((item) => item.id !== image.id));
+      await refreshImages();
+    } catch (error) {
+      setLoadError(
+        error instanceof Error ? error.message : "The photo could not be restored.",
+      );
+    }
+  }
+
+  async function permanentlyDelete(image: ImageRecord) {
+    if (
+      !window.confirm(
+        `Permanently delete “${image.name}” and its stored edits? This cannot be undone.`,
+      )
+    )
+      return;
+    try {
+      await libraryStore.purgeImages([image.id]);
+      setTrashImages((items) => items.filter((item) => item.id !== image.id));
+    } catch (error) {
+      setLoadError(
+        error instanceof Error
+          ? error.message
+          : "The photo could not be permanently deleted.",
+      );
+    }
+  }
+
+  async function emptyTrash() {
+    if (
+      trashImages.length === 0 ||
+      !window.confirm(
+        `Permanently delete all ${trashImages.length} photos in Trash? This cannot be undone.`,
+      )
+    )
+      return;
+    try {
+      await libraryStore.emptyTrash();
+      setTrashImages([]);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "Trash could not be emptied.");
     }
   }
 
@@ -219,6 +354,23 @@ export function LibraryPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button onClick={() => void exportBackup()} disabled={backupBusy}>
+            {backupBusy ? "Preparing backup…" : "Export backup"}
+          </Button>
+          <Button onClick={() => backupInput.current?.click()} disabled={backupBusy}>
+            Restore backup
+          </Button>
+          <input
+            ref={backupInput}
+            className="sr-only"
+            type="file"
+            accept=".zip,application/zip"
+            aria-label="Choose a VISTA backup to restore"
+            onChange={(event) => {
+              void importBackup(event.currentTarget.files?.[0]);
+              event.currentTarget.value = "";
+            }}
+          />
           {selectedIds.size === 1 && (
             <Button
               onClick={() => {
@@ -233,6 +385,7 @@ export function LibraryPage() {
             <Button onClick={() => void removeSelected()}>Remove selected</Button>
           )}
           <Button onClick={() => setAlbumsOpen(true)}>Albums</Button>
+          <Button onClick={() => void toggleTrash()}>Trash</Button>
           <Button variant="accent" onClick={() => fileInput.current?.click()}>
             Add photos
           </Button>
@@ -354,8 +507,45 @@ export function LibraryPage() {
         </div>
       </section>
 
+      {trashOpen && (
+        <section
+          aria-label="Trash"
+          className="mb-6 rounded-lg border border-line bg-raised p-4"
+        >
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-lg text-ink">Trash ({trashImages.length})</h2>
+            <Button onClick={() => void emptyTrash()} disabled={trashImages.length === 0}>
+              Empty trash
+            </Button>
+          </div>
+          {trashImages.length === 0 ? (
+            <p className="text-sm text-muted">Trash is empty.</p>
+          ) : (
+            <ul className="space-y-2">
+              {trashImages.map((image) => (
+                <li
+                  key={image.id}
+                  className="flex flex-wrap items-center justify-between gap-2 border-t border-line py-2"
+                >
+                  <span className="truncate text-sm text-ink">{image.name}</span>
+                  <div className="flex gap-2">
+                    <Button onClick={() => void restoreTrashImage(image)}>Restore</Button>
+                    <Button onClick={() => void permanentlyDelete(image)}>
+                      Delete permanently
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      )}
+
       <div className="mb-6">
         <StorageMeter imageCount={images.length} />
+        <p className="mt-2 text-xs text-muted" role="status">
+          {backupReminder}
+        </p>
       </div>
 
       <section
@@ -380,8 +570,8 @@ export function LibraryPage() {
           Drop photos here or use <span className="font-semibold">Add photos</span>.
         </p>
         <p className="mt-1 text-[12px] text-muted">
-          JPEG, PNG, and WebP · Up to 50 MB and 100 megapixels per image · HEIC is not
-          supported yet
+          JPEG, PNG, and WebP · Up to 50 MB and 100 megapixels per image · HEIC/HEIF and
+          AVIF are unsupported; choose JPEG, PNG, or WebP instead
         </p>
       </section>
 
