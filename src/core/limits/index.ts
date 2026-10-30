@@ -17,6 +17,15 @@ export const MAX_PIXEL_COUNT = 100_000_000;
 /** Maximum width or height allowed on export in pixels. */
 export const MAX_EXPORT_DIMENSION = 16_000;
 
+/** Heavy image jobs run sequentially until device-specific tuning is measured. */
+export const DEFAULT_JOB_CONCURRENCY = 1;
+
+/** Read only a bounded prefix while inspecting untrusted image headers. */
+export const MAX_IMAGE_HEADER_BYTES = 1024 * 1024;
+
+/** Terminate a worker if a browser decoder stops making progress. */
+export const MAX_IMAGE_PROCESSING_TIME_MS = 60_000;
+
 export type FileLimitError =
   | { kind: "tooLarge"; sizeBytes: number; maxBytes: number }
   | { kind: "tooManyPixels"; pixels: number; maxPixels: number }

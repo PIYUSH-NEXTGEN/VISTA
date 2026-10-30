@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Button } from "@/ui/button";
 import { FolderImportIcon, PlusMark } from "@/ui/icons";
 
@@ -42,9 +41,7 @@ const FEATURES = [
   },
 ] as const;
 
-function Hero() {
-  const [notice, setNotice] = useState(false);
-
+function Hero({ onOpenLibrary }: { onOpenLibrary: () => void }) {
   return (
     <section
       aria-labelledby="hero-heading"
@@ -77,23 +74,10 @@ function Hero() {
         </p>
 
         <div className="mt-10">
-          <Button
-            variant="accent"
-            onClick={() => setNotice(true)}
-            aria-describedby={notice ? "import-notice" : undefined}
-          >
+          <Button variant="accent" onClick={onOpenLibrary}>
             <FolderImportIcon className="h-4 w-4" />
-            Import a folder
+            Add photos
           </Button>
-          {notice && (
-            <p
-              id="import-notice"
-              role="status"
-              className="mx-auto mt-4 w-fit rounded-md border border-line bg-raised px-4 py-2 font-mono text-[12px] tracking-[0.08em] text-muted uppercase"
-            >
-              UI preview — import opens here in Phase 1
-            </p>
-          )}
         </div>
       </div>
     </section>
@@ -186,10 +170,10 @@ function Footer() {
   );
 }
 
-export function HomePage() {
+export function HomePage({ onOpenLibrary }: { onOpenLibrary: () => void }) {
   return (
     <>
-      <Hero />
+      <Hero onOpenLibrary={onOpenLibrary} />
       <StatsStrip />
       <FeatureGrid />
       <Footer />

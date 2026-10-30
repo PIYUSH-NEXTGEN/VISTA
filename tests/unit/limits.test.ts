@@ -2,13 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_FILE_SIZE_BYTES,
   MAX_PIXEL_COUNT,
+  DEFAULT_JOB_CONCURRENCY,
   isValidFile,
   validateFileLimits,
 } from "@/core/limits";
 
 describe("core/limits", () => {
+  it("keeps heavy image processing sequential by default", () => {
+    expect(DEFAULT_JOB_CONCURRENCY).toBe(1);
+  });
+
   it("accepts a normal photo", () => {
     expect(isValidFile(4_000_000, 4000, 3000)).toBe(true);
+  });
+
+  it("accepts files and images exactly at their configured limits", () => {
+    expect(isValidFile(MAX_FILE_SIZE_BYTES, 10_000, 10_000)).toBe(true);
+    expect(MAX_PIXEL_COUNT).toBe(100_000_000);
   });
 
   it("rejects a file over the size limit", () => {
