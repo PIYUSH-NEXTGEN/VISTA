@@ -18,8 +18,9 @@ not require user photos to leave the device.
 - Use TanStack Virtual for the thumbnail grid and `vite-plugin-pwa` to
   precache the static app shell.
 - Accept JPEG, PNG, and WebP with bounded header inspection, 50 MB file-size
-  and 100-megapixel limits. Defer HEIC; the user chose not to add the
-  LGPL-3.0 `libheif-js` dependency. AVIF is not supported either.
+  and 100-megapixel limits. HEIC/HEIF and AVIF are unsupported input formats;
+  show a clear message recommending JPEG, PNG, or WebP. Revisit HEIC only if a
+  decoder and its license are explicitly approved.
 - On browsers without worker `OffscreenCanvas`, return only a downscaled
   `ImageBitmap` for main-thread thumbnail encoding. If IndexedDB fails on
   Blob serialization with its specific Blob-preparation error, retry the
@@ -34,8 +35,8 @@ not require user photos to leave the device.
   processing moved to the main thread.
 - Browser-specific fallback coverage and supported engines are documented
   in `docs/browser-support.md`. Physical Safari/iOS devices remain untested.
-- Schema version 1 is covered by persistence and transaction tests. There
-  is no prior schema to migrate yet, so migration tests remain outstanding.
+- Schema v1 remains immutable; migration tests cover v1 and v2 upgrades to the
+  current schema v3.
 - Automated dependency audit currently reports four low-severity findings
   in development dependencies; `npm audit --omit=dev` reports no
   production dependency vulnerabilities. Reassess before updating PWA
