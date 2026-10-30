@@ -1,6 +1,6 @@
 // @vitest-environment node
 import "fake-indexeddb/auto";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import Dexie from "dexie";
 import { VistaDatabase } from "@/core/storage/database";
 import { DexieLibraryStore } from "@/core/storage/dexie-library-store";
@@ -137,6 +137,25 @@ describe("Dexie library storage", () => {
     expect(storedThumbnail).toBeInstanceOf(Blob);
     await expect(storedOriginal?.text()).resolves.toBe("original");
     await expect(storedThumbnail?.text()).resolves.toBe("thumbnail");
+  });
+
+  it("converts a browser quota failure into the actionable storage error", async () => {
+    const database = openTestDatabase();
+    const store = new DexieLibraryStore(database);
+    vi.spyOn(database.images, "add").mockRejectedValue(
+      new DOMException("Storage full", "QuotaExceededError"),
+    );
+
+    await expect(
+      store.addImage(
+        imageRecord("over-quota"),
+        new Blob(["original"]),
+        new Blob(["thumbnail"]),
+      ),
+    ).rejects.toMatchObject({
+      name: "StorageQuotaError",
+      message: "There is not enough browser storage to save this image.",
+    });
   });
 
   it("persists per-image edit steps without replacing the original blob", async () => {
