@@ -5,6 +5,7 @@ import type {
   ImageRecord,
   OcrRecord,
 } from "@/core/storage/models";
+import { validateEditStack } from "@/core/edit-stack/schema";
 
 /* Backup container layout (agent.md 6.4):
  *
@@ -147,7 +148,8 @@ function validateEditRow(value: unknown): BackupEditRow {
   if (!isString(row.imageId) || !Array.isArray(row.steps)) {
     throw new BackupManifestError("A backup edit entry is missing required fields.");
   }
-  return { imageId: row.imageId, steps: row.steps };
+  const stack = validateEditStack({ version: 1, steps: row.steps });
+  return { imageId: row.imageId, steps: stack.steps };
 }
 
 function validateOcrRow(value: unknown): OcrRecord {
@@ -203,7 +205,7 @@ function assertSafeBackupPath(path: string): void {
         !segment.includes("\\") &&
         segment !== "",
     );
-  if (!allowed || !safeSegments || path.includes("//")) {
+  if (!allowed || !safeSegments || path.includes("//") || path.split("/").length !== 2) {
     throw new BackupManifestError(`The backup contains an unexpected path: "${path}".`);
   }
 }
@@ -270,6 +272,7 @@ export interface BackupImportOptions {
   existingImages: Map<string, ImageRecord>;
   /** Albums already in this library keyed by lowercase name. */
   existingAlbumsByName: Map<string, AlbumRecord>;
+  existingAlbumIds?: Set<string>;
 }
 
 /* Conflict policy: never overwrite silently (agent.md 6.4).
@@ -314,6 +317,7 @@ export function planBackupImport(
     }
     plan.images.push(image);
     importedIds.add(image.id);
+    hashesInLibrary.set(image.contentHash, image.id);
     plan.thumbnails.set(image.id, `${BACKUP_THUMB_PREFIX}${image.id}.webp`);
   }
 
@@ -323,8 +327,9 @@ export function planBackupImport(
       plan.albumIdMap.set(album.id, reused.id);
       continue;
     }
-    plan.albumIdMap.set(album.id, album.id);
-    plan.albums.push(album);
+    const id = options.existingAlbumIds?.has(album.id) ? crypto.randomUUID() : album.id;
+    plan.albumIdMap.set(album.id, id);
+    plan.albums.push({ ...album, id });
   }
 
   for (const item of manifest.albumItems) {

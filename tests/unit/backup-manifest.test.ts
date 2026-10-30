@@ -74,6 +74,16 @@ describe("validateBackupManifest", () => {
     expect(() => validateBackupManifest(hostile)).toThrow(BackupManifestError);
   });
 
+  it("rejects nested archive paths", () => {
+    const manifest = manifestWith([image({ id: "nested/photo" })]);
+    expect(() =>
+      validateBackupManifest({
+        ...manifest,
+        checksums: { "files/nested/photo.jpg": "0".repeat(64) },
+      }),
+    ).toThrow(/unexpected path/);
+  });
+
   it("rejects checksum entries for files that are not described", () => {
     const manifest = manifestWith([image({})]);
     const extra = {
