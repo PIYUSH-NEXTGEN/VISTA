@@ -1,10 +1,41 @@
-import { useState } from "react";
+import { Suspense, lazy, useState } from "react";
 import { AppShell } from "@/app/app-shell";
 import type { WorkspaceId } from "@/app/workspaces";
-import { HomePage } from "@/features/home/home-page";
-import { LibraryPage } from "@/features/library/library-page";
-import { WorkspacePlaceholder } from "@/features/placeholder/workspace-placeholder";
 import { PwaUpdatePrompt } from "@/app/pwa-update-prompt";
+
+const HomePage = lazy(() =>
+  import("@/features/home/home-page").then(({ HomePage }) => ({ default: HomePage })),
+);
+const LibraryPage = lazy(() =>
+  import("@/features/library/library-page").then(({ LibraryPage }) => ({
+    default: LibraryPage,
+  })),
+);
+const EditorPage = lazy(() =>
+  import("@/features/editor/editor-page").then(({ EditorPage }) => ({
+    default: EditorPage,
+  })),
+);
+const ToolsPage = lazy(() =>
+  import("@/features/tools/tools-page").then(({ ToolsPage }) => ({ default: ToolsPage })),
+);
+const HealthPage = lazy(() =>
+  import("@/features/health/health-page").then(({ HealthPage }) => ({
+    default: HealthPage,
+  })),
+);
+const CreatePage = lazy(() =>
+  import("@/features/create/create-page").then(({ CreatePage }) => ({
+    default: CreatePage,
+  })),
+);
+const WorkspacePlaceholder = lazy(() =>
+  import("@/features/placeholder/workspace-placeholder").then(
+    ({ WorkspacePlaceholder }) => ({
+      default: WorkspacePlaceholder,
+    }),
+  ),
+);
 
 export function App() {
   const [active, setActive] = useState<WorkspaceId>("home");
@@ -12,13 +43,29 @@ export function App() {
   return (
     <>
       <AppShell active={active} onNavigate={setActive}>
-        {active === "home" ? (
-          <HomePage onOpenLibrary={() => setActive("library")} />
-        ) : active === "library" ? (
-          <LibraryPage />
-        ) : (
-          <WorkspacePlaceholder id={active} />
-        )}
+        <Suspense
+          fallback={
+            <main role="status" className="mx-auto max-w-6xl p-8 text-muted">
+              Loading workspace…
+            </main>
+          }
+        >
+          {active === "home" ? (
+            <HomePage onOpenLibrary={() => setActive("library")} />
+          ) : active === "library" ? (
+            <LibraryPage />
+          ) : active === "editor" ? (
+            <EditorPage />
+          ) : active === "tools" ? (
+            <ToolsPage />
+          ) : active === "health" ? (
+            <HealthPage />
+          ) : active === "create" ? (
+            <CreatePage />
+          ) : (
+            <WorkspacePlaceholder id={active} />
+          )}
+        </Suspense>
       </AppShell>
       <PwaUpdatePrompt />
     </>

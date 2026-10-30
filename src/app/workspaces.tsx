@@ -8,7 +8,8 @@ import {
   SettingsIcon,
 } from "@/ui/icons";
 
-export type WorkspaceId = "home" | "library" | "editor" | "health" | "tools" | "settings";
+export type WorkspaceId =
+  "home" | "library" | "editor" | "health" | "tools" | "create" | "settings";
 
 interface Workspace {
   id: WorkspaceId;
@@ -22,6 +23,7 @@ export const WORKSPACES: readonly Workspace[] = [
   { id: "editor", label: "Editor", phase: "Phase 3" },
   { id: "health", label: "Health", phase: "Phase 5" },
   { id: "tools", label: "Tools", phase: "Phase 4" },
+  { id: "create", label: "Create", phase: "Phase 6" },
   { id: "settings", label: "Settings", phase: "Phase 8" },
 ];
 
@@ -36,6 +38,8 @@ export function workspaceIcon(id: WorkspaceId, props: IconPropsSubset) {
     case "health":
       return <HealthIcon {...props} />;
     case "tools":
+      return <ToolsIcon {...props} />;
+    case "create":
       return <ToolsIcon {...props} />;
     case "settings":
       return <SettingsIcon {...props} />;
