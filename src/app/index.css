@@ -1,32 +1,14 @@
 @import "tailwindcss";
 
 /* Reference design language:
-   warm light-gray workbench, thin 1px borders, single orange accent,
+   light-gray workbench, thin 1px borders, single orange accent,
    uppercase wide-tracked small labels, near-black active pill nav.
    All colors as tokens so both themes stay consistent. */
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Silkscreen, SIL OFL 1.1 — bundled latin subsets (~16 KB), used for
-   the blocky display masthead that anchors the reference identity. */
-@font-face {
-  font-family: "Silkscreen";
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url("/fonts/silkscreen-400-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+2000-206F, U+2122, U+2191, U+2193, U+FEFF, U+FFFD;
-}
-@font-face {
-  font-family: "Silkscreen";
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url("/fonts/silkscreen-700-latin.woff2") format("woff2");
-  unicode-range: U+0000-00FF, U+2000-206F, U+2122, U+2191, U+2193, U+FEFF, U+FFFD;
-}
-
 :root {
+  --outer-bg: #dddad4;
   --bg: #e9e7e3;
   --surface: #f6f5f2;
   --surface-raised: #fcfbf9;
@@ -39,30 +21,31 @@
   --nav-muted: #6f6c65;
   --nav-active-bg: #17150f;
   --nav-active-ink: #f6f5f2;
-  --accent: #d34d02;
-  --accent-hover: #b84202;
+  --accent: #b84e20;
+  --accent-hover: #a84318;
   --accent-ink: #ffffff;
-  --focus: #d34d02;
+  --focus: #b84e20;
   color-scheme: light;
 }
 
 .dark {
-  --bg: #161511;
-  --surface: #1d1c18;
-  --surface-raised: #232219;
-  --ink: #f1efe9;
-  --ink-muted: #a09c92;
-  --line: #2e2c26;
-  --line-strong: #413e35;
-  --nav-bg: #1a1915;
-  --nav-ink: #f1efe9;
-  --nav-muted: #9d998f;
-  --nav-active-bg: #f1efe9;
-  --nav-active-ink: #17150f;
-  --accent: #e8620a;
-  --accent-hover: #f07018;
-  --accent-ink: #17150f;
-  --focus: #e8620a;
+  --outer-bg: #0b0d0f;
+  --bg: #121416;
+  --surface: #191c1f;
+  --surface-raised: #202326;
+  --ink: #f0f1f2;
+  --ink-muted: #a0a5a9;
+  --line: #303438;
+  --line-strong: #44494d;
+  --nav-bg: #141719;
+  --nav-ink: #f0f1f2;
+  --nav-muted: #a0a5a9;
+  --nav-active-bg: #f0f1f2;
+  --nav-active-ink: #171a1c;
+  --accent: #c07852;
+  --accent-hover: #ca8660;
+  --accent-ink: #111113;
+  --focus: #c07852;
   color-scheme: dark;
 }
 
@@ -86,8 +69,7 @@
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
     sans-serif;
-  --font-display:
-    "Silkscreen", ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas, monospace;
+  --font-display: var(--font-sans);
   --font-mono:
     ui-monospace, "SFMono-Regular", "Cascadia Mono", "Segoe UI Mono", Menlo, Consolas,
     monospace;
@@ -102,7 +84,7 @@
   }
 
   body {
-    background-color: var(--bg);
+    background-color: var(--outer-bg);
     color: var(--ink);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;

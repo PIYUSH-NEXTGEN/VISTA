@@ -1,5 +1,4 @@
 import { workspaceIcon, WORKSPACES, type WorkspaceId } from "@/app/workspaces";
-import { PlusMark } from "@/ui/icons";
 
 /* Honest placeholder for workspaces whose phase has not started yet. */
 export function WorkspacePlaceholder({ id }: { id: WorkspaceId }) {
@@ -8,11 +7,6 @@ export function WorkspacePlaceholder({ id }: { id: WorkspaceId }) {
 
   return (
     <section aria-labelledby="placeholder-heading" className="relative min-h-[70vh]">
-      <PlusMark className="top-4 left-5" />
-      <PlusMark className="top-4 right-5" />
-      <PlusMark className="bottom-4 left-5" />
-      <PlusMark className="bottom-4 right-5" />
-
       <div className="mx-auto flex max-w-md flex-col items-center px-4 py-24 text-center sm:px-6">
         <span className="flex h-12 w-12 items-center justify-center rounded-lg border border-line bg-raised text-muted">
           {workspaceIcon(id, { className: "h-5 w-5" })}

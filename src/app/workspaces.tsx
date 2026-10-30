@@ -5,6 +5,7 @@ import {
   EditorIcon,
   HealthIcon,
   ToolsIcon,
+  CreateIcon,
   SettingsIcon,
 } from "@/ui/icons";
 
@@ -40,7 +41,7 @@ export function workspaceIcon(id: WorkspaceId, props: IconPropsSubset) {
     case "tools":
       return <ToolsIcon {...props} />;
     case "create":
-      return <ToolsIcon {...props} />;
+      return <CreateIcon {...props} />;
     case "settings":
       return <SettingsIcon {...props} />;
   }
