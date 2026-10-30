@@ -81,12 +81,32 @@ describe("inspectImage", () => {
     bytes.set(new TextEncoder().encode("ftypheic"), 4);
     await expect(inspectImage(new Blob([bytes]))).rejects.toMatchObject({
       code: "unsupportedFormat",
+      message:
+        "HEIC/HEIF files are not supported. Choose a JPEG, PNG, or WebP image instead.",
     });
   });
 
   it("rejects mislabeled non-image files", async () => {
     const file = new File(["not an image"], "photo.png", { type: "image/png" });
     await expect(inspectImage(file)).rejects.toMatchObject({
+      code: "invalidMagic",
+    });
+  });
+
+  it("rejects empty files as a malformed header", async () => {
+    await expect(inspectImage(new Blob([]))).rejects.toMatchObject({
+      code: "malformedHeader",
+    });
+  });
+
+  it.each([
+    ["corrupt input", new TextEncoder().encode("broken image bytes")],
+    [
+      "active SVG input",
+      new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg"/>'),
+    ],
+  ])("rejects %s by its file content", async (_description, bytes) => {
+    await expect(inspectImage(new Blob([bytes]))).rejects.toMatchObject({
       code: "invalidMagic",
     });
   });

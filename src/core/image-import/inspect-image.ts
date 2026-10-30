@@ -45,10 +45,14 @@ export async function inspectImage(file: Blob): Promise<ImageHeader> {
   const bytes = new Uint8Array(await file.slice(0, MAX_IMAGE_HEADER_BYTES).arrayBuffer());
   const detected = detectFormat(bytes);
   if (!detected) {
-    if (isHeifOrAvif(bytes)) {
+    const unsupportedBrand = getUnsupportedIsoBrand(bytes);
+    if (unsupportedBrand) {
+      const heic = !unsupportedBrand.startsWith("avi");
       throw new ImageInspectionError(
         "unsupportedFormat",
-        "HEIC and AVIF images are not supported yet.",
+        heic
+          ? "HEIC/HEIF files are not supported. Choose a JPEG, PNG, or WebP image instead."
+          : "AVIF input is not supported. Choose a JPEG, PNG, or WebP image instead.",
       );
     }
     throw new ImageInspectionError(
@@ -227,12 +231,14 @@ function isStartOfFrame(marker: number): boolean {
   );
 }
 
-function isHeifOrAvif(bytes: Uint8Array): boolean {
+function getUnsupportedIsoBrand(bytes: Uint8Array): string | undefined {
   if (bytes.length < 12 || ascii(bytes, 4, 4) !== "ftyp") {
-    return false;
+    return undefined;
   }
   const brand = ascii(bytes, 8, 4);
-  return ["heic", "heix", "hevc", "hevx", "mif1", "msf1", "avif", "avis"].includes(brand);
+  return ["heic", "heix", "hevc", "hevx", "mif1", "msf1", "avif", "avis"].includes(brand)
+    ? brand
+    : undefined;
 }
 
 function ascii(bytes: Uint8Array, offset: number, length: number): string {
