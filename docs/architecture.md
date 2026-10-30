@@ -9,6 +9,11 @@ defined as CSS custom properties in `src/app/index.css` (light + dark themes).
 Base primitives: Radix (`@radix-ui/react-dialog`, `-toast`, `-progress`)
 wrapped in small token-styled components in `src/ui/`.
 
+Phase 1 adds Dexie for IndexedDB, Comlink for the image worker, exifr for
+selected EXIF fields, TanStack Virtual for the thumbnail grid, and
+`vite-plugin-pwa` for the offline app shell. Exact dependency versions are
+recorded in `package.json`.
+
 ## Layering rules (agent.md Section 4)
 
 - `core/*` never imports from `features/*` or `ui/*`.
@@ -49,14 +54,39 @@ base-uri 'self'; frame-ancestors 'none'`.
 - COOP/COEP are not set; add them only if multi-threaded WASM requires it
   (agent.md 9.3), and retest all features afterwards.
 
-## Data flow (target state, agent.md Section 6)
+## Phase 1 data flow
 
-UI -> feature hooks -> `core/storage` (Dexie). Heavy work goes through
-`core/workers` (Comlink) into `core/image-ops` / `core/models`. Process one
-full-resolution image at a time; analysis and previews use downscaled copies.
+The library UI calls a feature hook, which validates and processes files via
+the Comlink worker and then writes through the `LibraryStore` interface.
+`DexieLibraryStore` stores image metadata and originals, thumbnails, albums
+and album items, edits, OCR, vectors, and settings in schema version 1.
+Adding image rows and deleting an image with its dependent rows are
+transactional.
+
+The worker inspects a bounded file header before decoding, rejects unsupported
+or unsafe images, extracts selected non-location EXIF data, computes a
+SHA-256 content hash, and creates a bounded thumbnail. A concurrency-one
+queue reports progress, supports cancellation, and enforces a processing
+timeout. JPEG, PNG, and WebP are accepted up to 50 MB and 100 megapixels.
+HEIC and AVIF are currently unsupported; see ADR-0004.
+
+On browsers without worker `OffscreenCanvas`, the worker transfers a
+downscaled `ImageBitmap` for thumbnail encoding on the main thread. If a
+browser rejects IndexedDB Blob serialization with its specific Blob
+preparation error, storage retries with `ArrayBuffer` records and recreates
+Blobs when reading. These compatibility paths do not move full-resolution
+decoding or hashing onto the main thread.
+
+The thumbnail grid is virtualized. Selection and the image viewer operate on
+the locally stored library. The storage meter reports browser estimates and
+offers an explicit persistent-storage request. The service worker precaches
+the static app shell only; user photos and IndexedDB data are never cached by
+the service worker. Updates are activated only after user confirmation.
 
 ## Status
 
 - Phase 0 complete: tooling, tests, headers, docs skeleton, base primitives.
-- Not yet present: storage layer, workers, PWA shell, PWA manifest/icons
-  (planned Phase 1), model management (Phase 7).
+- Phase 1 implementation is partial: core storage, image import, worker
+  processing, library UI, and offline shell are implemented. HEIC support and
+  storage migration tests remain incomplete.
+- Model management remains planned for Phase 7.

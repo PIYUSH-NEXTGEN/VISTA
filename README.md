@@ -52,6 +52,8 @@ First e2e run needs Playwright browsers: `npx playwright install`.
 
 Chromium, Firefox, and WebKit are exercised by the e2e suite (`docs/
 browser-support.md` records what is verified — never a claim without a test).
+Current import support is JPEG, PNG, and WebP, up to 50 MB and 100
+megapixels per image. HEIC and AVIF are not supported yet.
 
 ## Security
 

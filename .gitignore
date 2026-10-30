@@ -32,6 +32,12 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
+# Build/TS cache
+*.tsbuildinfo
+
+# Vercel local cache
+.vercel
+
 # OS / editor
 .DS_Store
 Thumbs.db
