@@ -1,5 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowRight } from "lucide-react";
+
 import { Button } from "@/ui/button";
 import { CreateIcon, FolderImportIcon, HealthIcon, PlusMark } from "@/ui/icons";
 
@@ -79,13 +79,6 @@ function Hero({ onOpenLibrary }: { onOpenLibrary: () => void }) {
             <FolderImportIcon className="h-3.5 w-3.5 transition-transform duration-200 group-hover:-translate-y-0.5 motion-reduce:transition-none" />
             Add photos
           </Button>
-          <a
-            href="#features-heading"
-            className="group inline-flex min-h-9 items-center justify-center gap-2 rounded-md border border-line bg-raised px-4 py-2 font-sans text-xs font-semibold text-ink transition-[transform,box-shadow,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:bg-surface hover:shadow-sm active:translate-y-0 motion-reduce:transform-none motion-reduce:transition-none"
-          >
-            How it works
-            <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" />
-          </a>
         </div>
 
         <p className="mt-4 text-[12px] text-muted sm:mt-5">
